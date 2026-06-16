@@ -641,6 +641,10 @@ meter::-moz-meter-bar {
   background: #ffffff;
 }
 
+.segmented-control.role-choice {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .segmented-control button {
   display: inline-flex;
   align-items: center;
@@ -667,7 +671,7 @@ meter::-moz-meter-bar {
 
 .demo-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -836,6 +840,95 @@ meter::-moz-meter-bar {
   margin-top: 22px;
   padding-top: 18px;
   border-top: 1px solid var(--line);
+}
+
+.admin-workspace {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-metrics div {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f7f8f4;
+}
+
+.admin-metrics span,
+.admin-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-metrics strong {
+  color: var(--ink-strong);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px 108px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.admin-row div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-row strong {
+  overflow: hidden;
+  color: var(--ink-strong);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-admin-row {
+  grid-template-columns: minmax(0, 1fr) 128px 92px;
+}
+
+.job-admin-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid #f0d2c9;
+  border-radius: 7px;
+  color: #a64024;
+  background: #fff6f1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .compact-heading {
@@ -1041,7 +1134,8 @@ meter::-moz-meter-bar {
 
   .job-grid,
   .pipeline-band,
-  .auth-workspace {
+  .auth-workspace,
+  .admin-workspace {
     grid-template-columns: 1fr;
   }
 
@@ -1092,7 +1186,11 @@ meter::-moz-meter-bar {
   .demo-grid,
   .button-row,
   .management-item,
-  .detail-grid {
+  .detail-grid,
+  .admin-metrics,
+  .admin-row,
+  .job-admin-row,
+  .segmented-control.role-choice {
     grid-template-columns: 1fr;
   }
 

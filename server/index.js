@@ -105,6 +105,7 @@ function scoreMatch(candidateSkills, job, resumeText = '') {
 function seedDatabase() {
   const candidateUserId = 'user_candidate_demo'
   const recruiterUserId = 'user_recruiter_demo'
+  const adminUserId = 'user_admin_demo'
 
   return {
     users: [
@@ -114,6 +115,7 @@ function seedDatabase() {
         email: 'candidate@demo.com',
         passwordHash: hashPassword('demo123'),
         role: 'candidate',
+        status: 'active',
         candidateId: 'cand_demo',
       },
       {
@@ -122,6 +124,15 @@ function seedDatabase() {
         email: 'recruiter@demo.com',
         passwordHash: hashPassword('demo123'),
         role: 'recruiter',
+        status: 'active',
+      },
+      {
+        id: adminUserId,
+        name: '后台管理员',
+        email: 'admin@demo.com',
+        passwordHash: hashPassword('demo123'),
+        role: 'admin',
+        status: 'active',
       },
     ],
     jobs: [
@@ -321,9 +332,11 @@ async function auth(req, res, next) {
   next()
 }
 
-function requireRole(role) {
+function requireRole(roles) {
+  const allowedRoles = Array.isArray(roles) ? roles : [roles]
+
   return (req, res, next) => {
-    if (req.user.role !== role) {
+    if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ message: '当前角色无权限操作' })
     }
 
@@ -385,6 +398,10 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ message: '邮箱或密码不正确' })
   }
 
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: '账号已被后台停用' })
+  }
+
   const token = crypto.randomBytes(24).toString('hex')
   sessions.set(token, user.id)
 
@@ -396,7 +413,9 @@ app.post('/api/auth/register', async (req, res) => {
   const name = String(req.body.name ?? '').trim()
   const email = String(req.body.email ?? '').trim().toLowerCase()
   const password = String(req.body.password ?? '')
-  const role = req.body.role === 'recruiter' ? 'recruiter' : 'candidate'
+  const role = ['candidate', 'recruiter', 'admin'].includes(req.body.role)
+    ? req.body.role
+    : 'candidate'
 
   if (!name || !email || password.length < 6) {
     return res.status(400).json({ message: '请填写姓名、邮箱和至少 6 位密码' })
@@ -412,6 +431,7 @@ app.post('/api/auth/register', async (req, res) => {
     email,
     passwordHash: hashPassword(password),
     role,
+    status: 'active',
   }
 
   if (role === 'candidate') {
@@ -530,7 +550,7 @@ app.get('/api/jobs', async (_req, res) => {
   res.json({ jobs: withApplicantCounts(db.jobs, db.applications) })
 })
 
-app.post('/api/jobs', auth, requireRole('recruiter'), async (req, res) => {
+app.post('/api/jobs', auth, requireRole(['recruiter', 'admin']), async (req, res) => {
   const skills = parseSkills(req.body.skills)
 
   if (!String(req.body.title ?? '').trim() || skills.length === 0) {
@@ -567,7 +587,7 @@ app.post('/api/jobs', auth, requireRole('recruiter'), async (req, res) => {
   })
 })
 
-app.patch('/api/jobs/:id', auth, requireRole('recruiter'), async (req, res) => {
+app.patch('/api/jobs/:id', auth, requireRole(['recruiter', 'admin']), async (req, res) => {
   const job = req.db.jobs.find((item) => item.id === req.params.id)
 
   if (!job) {
@@ -603,7 +623,7 @@ app.patch('/api/jobs/:id', auth, requireRole('recruiter'), async (req, res) => {
   })
 })
 
-app.delete('/api/jobs/:id', auth, requireRole('recruiter'), async (req, res) => {
+app.delete('/api/jobs/:id', auth, requireRole(['recruiter', 'admin']), async (req, res) => {
   const beforeCount = req.db.jobs.length
   req.db.jobs = req.db.jobs.filter((job) => job.id !== req.params.id)
   req.db.applications = req.db.applications.filter(
@@ -618,7 +638,7 @@ app.delete('/api/jobs/:id', auth, requireRole('recruiter'), async (req, res) => 
   res.status(204).end()
 })
 
-app.get('/api/candidates', auth, requireRole('recruiter'), (req, res) => {
+app.get('/api/candidates', auth, requireRole(['recruiter', 'admin']), (req, res) => {
   const job = req.db.jobs.find((item) => item.id === req.query.jobId) ?? req.db.jobs[0]
   const minScore = Number(req.query.minScore ?? 0)
   const search = String(req.query.search ?? '').trim().toLowerCase()
@@ -655,7 +675,7 @@ app.get('/api/candidates', auth, requireRole('recruiter'), (req, res) => {
 app.patch(
   '/api/candidates/:id',
   auth,
-  requireRole('recruiter'),
+  requireRole(['recruiter', 'admin']),
   async (req, res) => {
     const candidate = req.db.candidates.find((item) => item.id === req.params.id)
 
@@ -728,7 +748,7 @@ app.post('/api/applications', auth, requireRole('candidate'), async (req, res) =
 app.patch(
   '/api/applications/:id',
   auth,
-  requireRole('recruiter'),
+  requireRole(['recruiter', 'admin']),
   async (req, res) => {
     const application = req.db.applications.find(
       (item) => item.id === req.params.id,
@@ -750,6 +770,77 @@ app.patch(
     res.json({ application })
   },
 )
+
+app.get('/api/admin/overview', auth, requireRole('admin'), (req, res) => {
+  const jobs = withApplicantCounts(req.db.jobs, req.db.applications)
+
+  res.json({
+    users: req.db.users.map(publicUser),
+    jobs,
+    candidates: req.db.candidates,
+    applications: req.db.applications,
+    metrics: {
+      users: req.db.users.length,
+      activeUsers: req.db.users.filter((user) => user.status !== 'disabled')
+        .length,
+      jobs: req.db.jobs.length,
+      openJobs: req.db.jobs.filter((job) => job.status === 'open').length,
+      candidates: req.db.candidates.length,
+      applications: req.db.applications.length,
+    },
+  })
+})
+
+app.patch('/api/admin/users/:id', auth, requireRole('admin'), async (req, res) => {
+  const user = req.db.users.find((item) => item.id === req.params.id)
+
+  if (!user) {
+    return res.status(404).json({ message: '用户不存在' })
+  }
+
+  if (typeof req.body.name === 'string' && req.body.name.trim()) {
+    user.name = req.body.name.trim()
+  }
+
+  if (['candidate', 'recruiter', 'admin'].includes(req.body.role)) {
+    user.role = req.body.role
+
+    if (user.role === 'candidate' && !user.candidateId) {
+      const candidateId = id('cand')
+      user.candidateId = candidateId
+      req.db.candidates.push({
+        id: candidateId,
+        userId: user.id,
+        name: user.name,
+        title: '求职者',
+        location: '远程',
+        experience: '待补充',
+        skills: [],
+        resume: '',
+        resumeHighlights: '',
+        resumeFile: '',
+        status: '待筛选',
+        source: '后台创建',
+        notes: '',
+      })
+    }
+
+    if (user.role !== 'candidate') {
+      delete user.candidateId
+    }
+  }
+
+  if (['active', 'disabled'].includes(req.body.status)) {
+    if (user.id === req.user.id && req.body.status === 'disabled') {
+      return res.status(409).json({ message: '不能停用当前登录的管理员账号' })
+    }
+
+    user.status = req.body.status
+  }
+
+  await writeDb(req.db)
+  res.json({ user: publicUser(user) })
+})
 
 app.use((error, _req, res, _next) => {
   res.status(500).json({

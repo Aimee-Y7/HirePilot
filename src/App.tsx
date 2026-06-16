@@ -31,7 +31,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 
-type Role = 'candidate' | 'recruiter'
+type Role = 'candidate' | 'recruiter' | 'admin'
 type JobStatus = 'open' | 'paused' | 'closed'
 
 type User = {
@@ -39,6 +39,7 @@ type User = {
   name: string
   email: string
   role: Role
+  status?: 'active' | 'disabled'
   candidateId?: string
 }
 
@@ -112,6 +113,18 @@ type BootstrapResponse = {
   jobs: Job[]
   candidates: Candidate[]
   applications: Application[]
+}
+
+type AdminOverview = BootstrapResponse & {
+  users: User[]
+  metrics: {
+    users: number
+    activeUsers: number
+    jobs: number
+    openJobs: number
+    candidates: number
+    applications: number
+  }
 }
 
 type AuthResponse = {
@@ -243,6 +256,7 @@ function App() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [applications, setApplications] = useState<Application[]>([])
+  const [adminOverview, setAdminOverview] = useState<AdminOverview | null>(null)
   const [screenedCandidates, setScreenedCandidates] = useState<
     CandidateWithScore[]
   >([])
@@ -298,6 +312,7 @@ function App() {
     setToken('')
     setCurrentUser(null)
     setCandidateProfile(null)
+    setAdminOverview(null)
     setActiveRole('candidate')
   }, [])
 
@@ -320,8 +335,14 @@ function App() {
     }
   }, [clearSession, request])
 
+  const currentRole = currentUser?.role
+
   const loadScreeningCandidates = useCallback(async () => {
-    if (!screeningJobId || currentUser?.role !== 'recruiter') {
+    if (
+      !screeningJobId ||
+      !currentRole ||
+      !['recruiter', 'admin'].includes(currentRole)
+    ) {
       return
     }
 
@@ -334,7 +355,16 @@ function App() {
       `/api/candidates?${params.toString()}`,
     )
     setScreenedCandidates(data.candidates)
-  }, [candidateSearch, currentUser?.role, minScore, request, screeningJobId])
+  }, [candidateSearch, currentRole, minScore, request, screeningJobId])
+
+  const loadAdminOverview = useCallback(async () => {
+    if (currentRole !== 'admin') {
+      return
+    }
+
+    const data = await request<AdminOverview>('/api/admin/overview')
+    setAdminOverview(data)
+  }, [currentRole, request])
 
   useEffect(() => {
     void loadBootstrap().catch((error) => setMessage(error.message))
@@ -365,6 +395,10 @@ function App() {
   useEffect(() => {
     void loadScreeningCandidates().catch((error) => setMessage(error.message))
   }, [loadScreeningCandidates])
+
+  useEffect(() => {
+    void loadAdminOverview().catch((error) => setMessage(error.message))
+  }, [loadAdminOverview])
 
   const openJobs = useMemo(
     () => jobs.filter((job) => job.status === 'open'),
@@ -462,6 +496,7 @@ function App() {
     await loadBootstrap()
     await loadMe()
     await loadScreeningCandidates()
+    await loadAdminOverview()
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
@@ -499,7 +534,11 @@ function App() {
 
   async function loginDemo(role: Role) {
     const email =
-      role === 'candidate' ? 'candidate@demo.com' : 'recruiter@demo.com'
+      role === 'candidate'
+        ? 'candidate@demo.com'
+        : role === 'recruiter'
+          ? 'recruiter@demo.com'
+          : 'admin@demo.com'
     setAuthMode('login')
     setAuthForm((current) => ({
       ...current,
@@ -524,7 +563,9 @@ function App() {
       setCurrentUser(data.user)
       setActiveRole(data.user.role)
       await loadBootstrap()
-      setMessage(`${role === 'candidate' ? '求职者' : '招聘方'}演示账号已登录`)
+      const roleName =
+        role === 'candidate' ? '求职者' : role === 'recruiter' ? '招聘方' : '后台'
+      setMessage(`${roleName}演示账号已登录`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '登录失败')
     } finally {
@@ -820,6 +861,35 @@ function App() {
     }
   }
 
+  async function updateUser(user: User, payload: Partial<User>) {
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      const data = await request<{ user: User }>(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+
+      setAdminOverview((current) =>
+        current
+          ? {
+              ...current,
+              users: current.users.map((item) =>
+                item.id === data.user.id ? data.user : item,
+              ),
+            }
+          : current,
+      )
+      await loadAdminOverview()
+      setMessage('后台用户已更新')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '用户更新失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
   function updateJobForm(field: keyof JobForm, value: string) {
     setJobForm((current) => ({
       ...current,
@@ -840,6 +910,7 @@ function App() {
 
   const canSeeCandidate = currentUser?.role === 'candidate'
   const canSeeRecruiter = currentUser?.role === 'recruiter'
+  const canSeeAdmin = currentUser?.role === 'admin'
 
   return (
     <div className="app-shell">
@@ -872,6 +943,15 @@ function App() {
             <Building2 size={18} aria-hidden="true" />
             招聘方
           </button>
+          <button
+            className={activeRole === 'admin' ? 'active' : ''}
+            disabled={!canSeeAdmin}
+            type="button"
+            onClick={() => setActiveRole('admin')}
+          >
+            <ShieldCheck size={18} aria-hidden="true" />
+            后台
+          </button>
         </nav>
         <div className="account-panel">
           {currentUser ? (
@@ -895,38 +975,46 @@ function App() {
                 <Building2 size={17} aria-hidden="true" />
                 招聘演示
               </button>
+              <button type="button" onClick={() => loginDemo('admin')}>
+                <ShieldCheck size={17} aria-hidden="true" />
+                后台演示
+              </button>
             </>
           )}
         </div>
       </header>
 
       <main>
-        <section className="summary-band" aria-label="招聘概览">
-          <div className="metric">
-            <span>活跃岗位</span>
-            <strong>{openJobs.length}</strong>
-          </div>
-          <div className="metric">
-            <span>候选人库</span>
-            <strong>{candidates.length}</strong>
-          </div>
-          <div className="metric">
-            <span>平均匹配</span>
-            <strong>{averageScore}%</strong>
-          </div>
-          <div className="visual-tile">
-            <img
-              src="https://images.unsplash.com/photo-1551836022-deb4988cc6c0?auto=format&fit=crop&w=900&q=80"
-              alt="招聘团队在工作台上协作分析候选人数据"
-            />
-            <div>
-              <span>今日推荐</span>
-              <strong>
-                {screenedCandidates[0]?.name ?? candidateProfile?.name ?? '待登录'}
-              </strong>
+        {currentUser ? (
+          <section className="summary-band" aria-label="招聘概览">
+            <div className="metric">
+              <span>活跃岗位</span>
+              <strong>{openJobs.length}</strong>
             </div>
-          </div>
-        </section>
+            <div className="metric">
+              <span>候选人库</span>
+              <strong>{candidates.length}</strong>
+            </div>
+            <div className="metric">
+              <span>平均匹配</span>
+              <strong>{averageScore}%</strong>
+            </div>
+            <div className="visual-tile">
+              <img
+                src="https://images.unsplash.com/photo-1551836022-deb4988cc6c0?auto=format&fit=crop&w=900&q=80"
+                alt="招聘团队在工作台上协作分析候选人数据"
+              />
+              <div>
+                <span>今日推荐</span>
+                <strong>
+                  {screenedCandidates[0]?.name ??
+                    candidateProfile?.name ??
+                    currentUser.name}
+                </strong>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {message ? (
           <div className="status-banner" role="status">
@@ -1031,6 +1119,19 @@ function App() {
                     <Building2 size={16} aria-hidden="true" />
                     招聘方
                   </button>
+                  <button
+                    className={authForm.role === 'admin' ? 'active' : ''}
+                    type="button"
+                    onClick={() =>
+                      setAuthForm((current) => ({
+                        ...current,
+                        role: 'admin',
+                      }))
+                    }
+                  >
+                    <ShieldCheck size={16} aria-hidden="true" />
+                    后台
+                  </button>
                 </div>
               ) : null}
               <button className="primary-action" disabled={isBusy} type="submit">
@@ -1060,6 +1161,11 @@ function App() {
                   <Building2 size={22} aria-hidden="true" />
                   <span>recruiter@demo.com</span>
                   <strong>招聘方</strong>
+                </button>
+                <button type="button" onClick={() => loginDemo('admin')}>
+                  <ShieldCheck size={22} aria-hidden="true" />
+                  <span>admin@demo.com</span>
+                  <strong>后台管理</strong>
                 </button>
               </div>
             </section>
@@ -1637,6 +1743,133 @@ function App() {
                     </article>
                   ))
                 )}
+              </div>
+            </section>
+          </section>
+        ) : null}
+
+        {currentUser && activeRole === 'admin' && adminOverview ? (
+          <section className="admin-workspace" aria-label="后台管理工作台">
+            <section className="content-panel">
+              <div className="panel-heading split">
+                <div>
+                  <p className="eyebrow">Admin</p>
+                  <h2>用户管理</h2>
+                </div>
+                <ShieldCheck size={22} aria-hidden="true" />
+              </div>
+              <div className="admin-metrics">
+                <div>
+                  <span>用户</span>
+                  <strong>{adminOverview.metrics.users}</strong>
+                </div>
+                <div>
+                  <span>启用</span>
+                  <strong>{adminOverview.metrics.activeUsers}</strong>
+                </div>
+                <div>
+                  <span>投递</span>
+                  <strong>{adminOverview.metrics.applications}</strong>
+                </div>
+              </div>
+              <div className="admin-list">
+                {adminOverview.users.map((user) => (
+                  <article className="admin-row" key={user.id}>
+                    <div>
+                      <strong>{user.name}</strong>
+                      <span>{user.email}</span>
+                    </div>
+                    <select
+                      value={user.role}
+                      onChange={(event) =>
+                        updateUser(user, { role: event.target.value as Role })
+                      }
+                    >
+                      <option value="candidate">求职方</option>
+                      <option value="recruiter">招聘方</option>
+                      <option value="admin">后台</option>
+                    </select>
+                    <select
+                      value={user.status ?? 'active'}
+                      onChange={(event) =>
+                        updateUser(user, {
+                          status: event.target.value as User['status'],
+                        })
+                      }
+                    >
+                      <option value="active">启用</option>
+                      <option value="disabled">停用</option>
+                    </select>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="content-panel">
+              <div className="panel-heading split">
+                <div>
+                  <p className="eyebrow">Jobs</p>
+                  <h2>岗位监管</h2>
+                </div>
+                <BriefcaseBusiness size={22} aria-hidden="true" />
+              </div>
+              <div className="admin-list">
+                {jobs.map((job) => (
+                  <article className="admin-row job-admin-row" key={job.id}>
+                    <div>
+                      <strong>{job.title}</strong>
+                      <span>
+                        {job.department} · {job.location} · {job.applicants} 份简历
+                      </span>
+                    </div>
+                    <select
+                      value={job.status}
+                      onChange={(event) =>
+                        updateJobStatus(job, event.target.value as JobStatus)
+                      }
+                    >
+                      <option value="open">招聘中</option>
+                      <option value="paused">已暂停</option>
+                      <option value="closed">已关闭</option>
+                    </select>
+                    <button type="button" onClick={() => deleteJob(job)}>
+                      <Trash2 size={16} aria-hidden="true" />
+                      删除
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="content-panel admin-wide">
+              <div className="panel-heading split">
+                <div>
+                  <p className="eyebrow">Applications</p>
+                  <h2>投递监管</h2>
+                </div>
+                <ClipboardList size={22} aria-hidden="true" />
+              </div>
+              <div className="application-list">
+                {applications.map((application) => {
+                  const job = jobs.find((item) => item.id === application.jobId)
+                  const candidate = candidates.find(
+                    (item) => item.id === application.candidateId,
+                  )
+
+                  return (
+                    <article className="application-item" key={application.id}>
+                      <div>
+                        <strong>
+                          {candidate?.name ?? '未知候选人'} →{' '}
+                          {job?.title ?? '岗位已删除'}
+                        </strong>
+                        <span>{formatDate(application.createdAt)}</span>
+                      </div>
+                      <p>{application.note}</p>
+                      <span className="source-pill">{application.status}</span>
+                    </article>
+                  )
+                })}
               </div>
             </section>
           </section>

@@ -622,6 +622,7 @@ function App() {
         candidate: Candidate
         parser: string
         parsedProfile: Partial<Candidate>
+        generatedHighlights?: string
       }>('/api/resumes', {
         method: 'POST',
         body,
@@ -638,9 +639,9 @@ function App() {
         data.parsedProfile.experience ? '经验' : '',
       ].filter(Boolean)
       setMessage(
-        data.parser === 'document'
-          ? `简历已解析，已更新${updatedFields.join('、') || '技能'}`
-          : `简历已上传，已更新${updatedFields.join('、') || '技能'}`,
+        `${data.parser === 'document' ? '简历已解析' : '简历已上传'}，已更新${
+          updatedFields.join('、') || '技能'
+        }${data.generatedHighlights ? '，并自动提取简历亮点' : ''}`,
       )
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '上传失败')

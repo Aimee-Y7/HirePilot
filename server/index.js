@@ -89,6 +89,25 @@ function firstRegexMatch(text, patterns) {
   return ''
 }
 
+function cleanResumeLine(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/^[•·\-–—*#\s]+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function cleanResumeProfileTitle(value) {
+  return cleanResumeLine(value)
+    .replace(
+      /^(?:求职意向|目标岗位|应聘岗位|求职方向|意向岗位|目标职位|期望职位|岗位|职位|应聘|求职)[:：\s]+/,
+      '',
+    )
+    .replace(/^[•·\-–—*#\s]+/, '')
+    .replace(/[，,；;。.\s]+$/, '')
+    .trim()
+}
+
 function normalizeOriginalName(fileName) {
   const originalName = String(fileName ?? '')
 
@@ -177,11 +196,12 @@ function deriveResumeProfile(text, fileName = '') {
       .replace(/\.[^.]+$/, '')
       .match(/^([一-龥]{2,4})/)?.[1] ||
     ''
-  const inferredTitle =
+  const inferredTitle = cleanResumeProfileTitle(
     firstRegexMatch(compactText, [
       /(?:求职意向|目标岗位|应聘岗位|求职方向|意向岗位|目标职位|期望职位)[:：\s]+([^\n\r,，;；|｜]{2,32})/,
       /(?:应聘|求职)[:：\s]*([^\n\r,，;；|｜]{2,32})/,
-    ]) || inferTitleFromLines(normalizedLines)
+    ]) || inferTitleFromLines(normalizedLines),
+  )
 
   return {
     name: inferredName,
@@ -190,6 +210,43 @@ function deriveResumeProfile(text, fileName = '') {
     experience,
     fileName: normalizedFileName,
   }
+}
+
+function deriveResumeHighlights(text, parsedProfile, skills) {
+  const content = String(text ?? '')
+  const lines = content
+    .split(/\r?\n|。|；|;/)
+    .map(cleanResumeLine)
+    .filter((line) => line.length >= 12 && line.length <= 90)
+  const scoredLines = lines
+    .map((line) => {
+      const score = [
+        /主导|负责|搭建|建设|优化|推动|设计|落地/.test(line) ? 3 : 0,
+        /AI|SaaS|招聘|简历|岗位|匹配|数据|分析|漏斗|候选人/.test(line) ? 3 : 0,
+        /提升|增长|转化|效率|准确率|自动化|从 0 到 1|从0到1/.test(line) ? 2 : 0,
+        skills.some((skill) => line.toLowerCase().includes(skill.toLowerCase()))
+          ? 2
+          : 0,
+      ].reduce((total, value) => total + value, 0)
+
+      return { line, score }
+    })
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score)
+
+  const highlights = uniqSkills(scoredLines.slice(0, 3).map((item) => item.line))
+
+  if (highlights.length > 0) {
+    return highlights.join('；')
+  }
+
+  const skillText = skills.slice(0, 5).join('、') || '岗位匹配'
+  const titleText = parsedProfile.title || '目标岗位'
+  const experienceText = parsedProfile.experience
+    ? `${parsedProfile.experience}相关经验`
+    : '具备相关项目经验'
+
+  return `${experienceText}，方向聚焦${titleText}，核心能力覆盖${skillText}。`
 }
 
 function scoreMatch(candidateSkills, job, resumeText = '') {
@@ -949,6 +1006,9 @@ app.post(
         ...extractSkills(fallbackText),
         ...extractSkills(highlights),
       ])
+      const generatedHighlights = highlights
+        ? ''
+        : deriveResumeHighlights(fallbackText, parsedProfile, skills)
 
       if (parsedProfile.name) {
         candidate.name = parsedProfile.name
@@ -968,7 +1028,8 @@ app.post(
       }
 
       candidate.resume = fallbackText
-      candidate.resumeHighlights = highlights || candidate.resumeHighlights
+      candidate.resumeHighlights =
+        highlights || generatedHighlights || candidate.resumeHighlights
       candidate.resumeFile = parsedProfile.fileName || normalizedFileName
       candidate.skills = skills
       candidate.source = '官网投递'
@@ -979,6 +1040,7 @@ app.post(
         parsedLength: fallbackText.length,
         parser: parsedText ? 'document' : 'fallback',
         parsedProfile,
+        generatedHighlights,
       })
     } catch (error) {
       res.status(422).json({

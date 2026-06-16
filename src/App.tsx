@@ -1,28 +1,49 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import {
   BadgeCheck,
   BriefcaseBusiness,
   Building2,
+  CalendarCheck,
   CheckCircle2,
-  ChevronRight,
-  Clock3,
+  ClipboardList,
+  Database,
+  Edit3,
+  Eye,
   FileText,
   Filter,
+  KeyRound,
+  LogOut,
   MapPin,
   Plus,
+  RefreshCw,
+  Save,
   Search,
+  Send,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   UploadCloud,
+  UserPlus,
   UserRound,
+  X,
 } from 'lucide-react'
 import './App.css'
 
 type Role = 'candidate' | 'recruiter'
+type JobStatus = 'open' | 'paused' | 'closed'
+
+type User = {
+  id: string
+  name: string
+  email: string
+  role: Role
+  candidateId?: string
+}
 
 type Job = {
-  id: number
+  id: string
   title: string
   department: string
   location: string
@@ -34,27 +55,38 @@ type Job = {
   skills: string[]
   posted: string
   applicants: number
-  stage: '热招' | '终面' | '新发布'
+  stage: string
+  status: JobStatus
 }
 
 type Candidate = {
-  id: number
+  id: string
+  userId?: string
   name: string
   title: string
   location: string
   experience: string
   skills: string[]
   resume: string
-  status: '待筛选' | '已约面' | '已收藏'
+  resumeHighlights: string
+  resumeFile: string
+  status: string
   source: string
+  notes: string
 }
 
-type ResumeProfile = {
-  name: string
-  fileName: string
-  fileSize: string
-  text: string
-  skills: string[]
+type CandidateWithScore = Candidate & {
+  score: number
+  matchedSkills: string[]
+}
+
+type Application = {
+  id: string
+  jobId: string
+  candidateId: string
+  status: string
+  note: string
+  createdAt: string
 }
 
 type JobForm = {
@@ -66,6 +98,30 @@ type JobForm = {
   salary: string
   skills: string
   summary: string
+  status: JobStatus
+}
+
+type AuthForm = {
+  name: string
+  email: string
+  password: string
+  role: Role
+}
+
+type BootstrapResponse = {
+  jobs: Job[]
+  candidates: Candidate[]
+  applications: Application[]
+}
+
+type AuthResponse = {
+  token: string
+  user: User
+}
+
+type MeResponse = {
+  user: User
+  candidate: Candidate | null
 }
 
 const skillDictionary = [
@@ -89,124 +145,6 @@ const skillDictionary = [
   '项目管理',
 ]
 
-const initialJobs: Job[] = [
-  {
-    id: 101,
-    title: 'AI 招聘产品经理',
-    department: '产品',
-    location: '上海',
-    type: '全职',
-    level: '中高级',
-    salary: '28k-45k',
-    owner: '周敏',
-    summary: '负责招聘智能体、简历解析、候选人匹配策略与招聘方工作台体验。',
-    skills: ['产品设计', '用户研究', 'AI', '招聘', 'SaaS'],
-    posted: '今天',
-    applicants: 42,
-    stage: '热招',
-  },
-  {
-    id: 102,
-    title: '前端工程师 React',
-    department: '技术',
-    location: '深圳',
-    type: '全职',
-    level: '3-5 年',
-    salary: '25k-40k',
-    owner: '林杰',
-    summary: '建设候选人门户、招聘方筛选台和实时协同反馈组件。',
-    skills: ['React', 'TypeScript', 'Node.js', 'SaaS'],
-    posted: '2 天前',
-    applicants: 36,
-    stage: '终面',
-  },
-  {
-    id: 103,
-    title: 'HRBP 组织发展顾问',
-    department: '人力资源',
-    location: '北京',
-    type: '全职',
-    level: '5 年以上',
-    salary: '22k-35k',
-    owner: '赵颖',
-    summary: '支持业务团队人才盘点、绩效方案、组织诊断与关键岗位招聘。',
-    skills: ['HRBP', '绩效', '薪酬', '招聘', '项目管理'],
-    posted: '3 天前',
-    applicants: 28,
-    stage: '热招',
-  },
-  {
-    id: 104,
-    title: '数据分析师 人才洞察',
-    department: '数据',
-    location: '杭州',
-    type: '混合办公',
-    level: '2-4 年',
-    salary: '20k-32k',
-    owner: '陈琦',
-    summary: '搭建招聘漏斗指标、候选人质量模型与业务人才画像看板。',
-    skills: ['SQL', 'Python', '数据分析', 'AI'],
-    posted: '今天',
-    applicants: 19,
-    stage: '新发布',
-  },
-]
-
-const initialCandidates: Candidate[] = [
-  {
-    id: 201,
-    name: '许安琪',
-    title: 'AI 产品经理',
-    location: '上海',
-    experience: '6 年',
-    skills: ['产品设计', '用户研究', 'AI', '招聘', 'SaaS'],
-    resume: '做过简历解析、岗位匹配、招聘漏斗分析，主导过 B 端 SaaS 从 0 到 1。',
-    status: '已收藏',
-    source: '官网投递',
-  },
-  {
-    id: 202,
-    name: '李辰',
-    title: 'React 前端工程师',
-    location: '深圳',
-    experience: '4 年',
-    skills: ['React', 'TypeScript', 'Node.js', '数据分析'],
-    resume: '负责过企业协同平台、权限系统、仪表盘组件和文件上传流程。',
-    status: '已约面',
-    source: '内推',
-  },
-  {
-    id: 203,
-    name: '王嘉宁',
-    title: 'HRBP',
-    location: '北京',
-    experience: '7 年',
-    skills: ['HRBP', '绩效', '薪酬', '招聘', '项目管理'],
-    resume: '支持 500 人业务团队，熟悉人才盘点、绩效校准与关键岗位招聘。',
-    status: '待筛选',
-    source: '猎头推荐',
-  },
-  {
-    id: 204,
-    name: '周航',
-    title: '数据分析师',
-    location: '杭州',
-    experience: '3 年',
-    skills: ['SQL', 'Python', '数据分析', 'NLP', 'AI'],
-    resume: '搭建过招聘渠道归因、候选人评分模型和面试转化预测。',
-    status: '待筛选',
-    source: '官网投递',
-  },
-]
-
-const defaultResume: ResumeProfile = {
-  name: '候选人',
-  fileName: '',
-  fileSize: '',
-  text: 'React TypeScript AI SaaS 招聘 产品设计 数据分析',
-  skills: ['React', 'TypeScript', 'AI', 'SaaS', '招聘', '产品设计', '数据分析'],
-}
-
 const defaultJobForm: JobForm = {
   title: '',
   department: '产品',
@@ -216,14 +154,21 @@ const defaultJobForm: JobForm = {
   salary: '',
   skills: '',
   summary: '',
+  status: 'open',
 }
 
-function formatFileSize(size: number) {
-  if (size < 1024 * 1024) {
-    return `${Math.max(1, Math.round(size / 1024))} KB`
-  }
+const defaultAuthForm: AuthForm = {
+  name: '',
+  email: 'candidate@demo.com',
+  password: 'demo123',
+  role: 'candidate',
+}
 
-  return `${(size / 1024 / 1024).toFixed(1)} MB`
+function parseSkills(input: string) {
+  return input
+    .split(/[,，、\n]/)
+    .map((skill) => skill.trim())
+    .filter(Boolean)
 }
 
 function extractSkills(text: string) {
@@ -239,15 +184,18 @@ function uniqSkills(skills: string[]) {
 }
 
 function scoreMatch(candidateSkills: string[], job: Job, resumeText = '') {
-  const matchedSkills = job.skills.filter((skill) =>
+  const requiredSkills = job.skills.length > 0 ? job.skills : ['通用能力']
+  const matchedSkills = requiredSkills.filter((skill) =>
     candidateSkills.some(
       (candidateSkill) =>
         candidateSkill.toLowerCase() === skill.toLowerCase() ||
         candidateSkill.toLowerCase().includes(skill.toLowerCase()),
     ),
   )
-  const skillScore = Math.round((matchedSkills.length / job.skills.length) * 72)
-  const textBonus = job.skills.reduce((total, skill) => {
+  const skillScore = Math.round(
+    (matchedSkills.length / requiredSkills.length) * 72,
+  )
+  const textBonus = requiredSkills.reduce((total, skill) => {
     return resumeText.toLowerCase().includes(skill.toLowerCase())
       ? total + 4
       : total
@@ -260,44 +208,190 @@ function scoreMatch(candidateSkills: string[], job: Job, resumeText = '') {
   }
 }
 
+function statusLabel(status: JobStatus) {
+  return {
+    open: '招聘中',
+    paused: '已暂停',
+    closed: '已关闭',
+  }[status]
+}
+
+function formatDate(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleDateString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+  })
+}
+
 function App() {
-  const [activeRole, setActiveRole] = useState<Role>('candidate')
-  const [jobs, setJobs] = useState(initialJobs)
-  const [resumeProfile, setResumeProfile] = useState(defaultResume)
-  const [resumeHighlights, setResumeHighlights] = useState(
-    '6 年 B 端产品经验，做过 AI 简历解析、招聘漏斗分析和 SaaS 增长项目。',
+  const [token, setToken] = useState(
+    () => localStorage.getItem('hirepilot-token') ?? '',
   )
-  const [targetJobId, setTargetJobId] = useState(initialJobs[0].id)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [candidateProfile, setCandidateProfile] = useState<Candidate | null>(
+    null,
+  )
+  const [activeRole, setActiveRole] = useState<Role>('candidate')
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [authForm, setAuthForm] = useState(defaultAuthForm)
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [candidates, setCandidates] = useState<Candidate[]>([])
+  const [applications, setApplications] = useState<Application[]>([])
+  const [screenedCandidates, setScreenedCandidates] = useState<
+    CandidateWithScore[]
+  >([])
+  const [resumeHighlights, setResumeHighlights] = useState('')
+  const [targetJobId, setTargetJobId] = useState('')
   const [query, setQuery] = useState('')
   const [locationFilter, setLocationFilter] = useState('全部城市')
   const [departmentFilter, setDepartmentFilter] = useState('全部部门')
   const [skillFilter, setSkillFilter] = useState('全部技能')
   const [jobForm, setJobForm] = useState(defaultJobForm)
-  const [screeningJobId, setScreeningJobId] = useState(initialJobs[0].id)
+  const [editingJobId, setEditingJobId] = useState('')
+  const [screeningJobId, setScreeningJobId] = useState('')
   const [minScore, setMinScore] = useState(70)
   const [candidateSearch, setCandidateSearch] = useState('')
-  const [savedCandidates, setSavedCandidates] = useState<number[]>([201])
+  const [selectedCandidateId, setSelectedCandidateId] = useState('')
+  const [candidateNotes, setCandidateNotes] = useState('')
+  const [candidateStatus, setCandidateStatus] = useState('待筛选')
+  const [applicationStatus, setApplicationStatus] = useState('已投递')
+  const [applicationNote, setApplicationNote] = useState('')
+  const [message, setMessage] = useState('')
+  const [isBusy, setIsBusy] = useState(false)
 
-  const cities = useMemo(
-    () => ['全部城市', ...Array.from(new Set(jobs.map((job) => job.location)))],
+  const request = useCallback(
+    async <T,>(path: string, options: RequestInit = {}) => {
+      const headers = new Headers(options.headers)
+      const body = options.body
+
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`)
+      }
+
+      if (body && !(body instanceof FormData) && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json')
+      }
+
+      const response = await fetch(path, {
+        ...options,
+        headers,
+      })
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(data?.message ?? '请求失败')
+      }
+
+      return data as T
+    },
+    [token],
+  )
+
+  const clearSession = useCallback(() => {
+    localStorage.removeItem('hirepilot-token')
+    setToken('')
+    setCurrentUser(null)
+    setCandidateProfile(null)
+    setActiveRole('candidate')
+  }, [])
+
+  const loadBootstrap = useCallback(async () => {
+    const data = await request<BootstrapResponse>('/api/bootstrap')
+    setJobs(data.jobs)
+    setCandidates(data.candidates)
+    setApplications(data.applications)
+  }, [request])
+
+  const loadMe = useCallback(async () => {
+    try {
+      const data = await request<MeResponse>('/api/me')
+      setCurrentUser(data.user)
+      setCandidateProfile(data.candidate)
+      setResumeHighlights(data.candidate?.resumeHighlights ?? '')
+      setActiveRole(data.user.role)
+    } catch {
+      clearSession()
+    }
+  }, [clearSession, request])
+
+  const loadScreeningCandidates = useCallback(async () => {
+    if (!screeningJobId || currentUser?.role !== 'recruiter') {
+      return
+    }
+
+    const params = new URLSearchParams({
+      jobId: screeningJobId,
+      minScore: String(minScore),
+      search: candidateSearch,
+    })
+    const data = await request<{ candidates: CandidateWithScore[] }>(
+      `/api/candidates?${params.toString()}`,
+    )
+    setScreenedCandidates(data.candidates)
+  }, [candidateSearch, currentUser?.role, minScore, request, screeningJobId])
+
+  useEffect(() => {
+    void loadBootstrap().catch((error) => setMessage(error.message))
+  }, [loadBootstrap])
+
+  useEffect(() => {
+    if (token) {
+      void loadMe()
+    }
+  }, [loadMe, token])
+
+  useEffect(() => {
+    if (jobs.length === 0) {
+      return
+    }
+
+    if (!screeningJobId || !jobs.some((job) => job.id === screeningJobId)) {
+      setScreeningJobId(jobs[0].id)
+    }
+
+    const openJob = jobs.find((job) => job.status === 'open') ?? jobs[0]
+
+    if (!targetJobId || !jobs.some((job) => job.id === targetJobId)) {
+      setTargetJobId(openJob.id)
+    }
+  }, [jobs, screeningJobId, targetJobId])
+
+  useEffect(() => {
+    void loadScreeningCandidates().catch((error) => setMessage(error.message))
+  }, [loadScreeningCandidates])
+
+  const openJobs = useMemo(
+    () => jobs.filter((job) => job.status === 'open'),
     [jobs],
+  )
+  const cities = useMemo(
+    () => ['全部城市', ...Array.from(new Set(openJobs.map((job) => job.location)))],
+    [openJobs],
   )
   const departments = useMemo(
     () => [
       '全部部门',
-      ...Array.from(new Set(jobs.map((job) => job.department))),
+      ...Array.from(new Set(openJobs.map((job) => job.department))),
     ],
-    [jobs],
+    [openJobs],
   )
   const allSkills = useMemo(
-    () => ['全部技能', ...Array.from(new Set(jobs.flatMap((job) => job.skills)))],
-    [jobs],
+    () => [
+      '全部技能',
+      ...Array.from(new Set(openJobs.flatMap((job) => job.skills))),
+    ],
+    [openJobs],
   )
-
   const visibleJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
-    return jobs.filter((job) => {
+    return openJobs.filter((job) => {
       const matchesQuery =
         normalizedQuery.length === 0 ||
         [job.title, job.department, job.summary, job.location]
@@ -315,120 +409,415 @@ function App() {
         matchesQuery && matchesLocation && matchesDepartment && matchesSkill
       )
     })
-  }, [departmentFilter, jobs, locationFilter, query, skillFilter])
+  }, [departmentFilter, locationFilter, openJobs, query, skillFilter])
 
   const selectedTargetJob =
-    jobs.find((job) => job.id === targetJobId) ?? initialJobs[0]
-  const candidateMatch = scoreMatch(
-    uniqSkills([
-      ...resumeProfile.skills,
-      ...extractSkills(resumeHighlights),
-    ]),
-    selectedTargetJob,
-    `${resumeProfile.text} ${resumeHighlights}`,
-  )
+    jobs.find((job) => job.id === targetJobId) ?? openJobs[0] ?? jobs[0]
+  const currentCandidateSkills = uniqSkills([
+    ...(candidateProfile?.skills ?? []),
+    ...extractSkills(resumeHighlights),
+  ])
+  const candidateMatch = selectedTargetJob
+    ? scoreMatch(
+        currentCandidateSkills,
+        selectedTargetJob,
+        `${candidateProfile?.resume ?? ''} ${resumeHighlights}`,
+      )
+    : { score: 0, matchedSkills: [] }
+  const selectedCandidate =
+    screenedCandidates.find((candidate) => candidate.id === selectedCandidateId) ??
+    candidates.find((candidate) => candidate.id === selectedCandidateId) ??
+    null
+  const selectedApplication = selectedCandidate
+    ? applications.find(
+        (application) =>
+          application.candidateId === selectedCandidate.id &&
+          application.jobId === screeningJobId,
+      )
+    : null
+  const candidateApplications = candidateProfile
+    ? applications.filter(
+        (application) => application.candidateId === candidateProfile.id,
+      )
+    : []
+  const averageScore =
+    screenedCandidates.length > 0
+      ? Math.round(
+          screenedCandidates.reduce(
+            (total, candidate) => total + candidate.score,
+            0,
+          ) / screenedCandidates.length,
+        )
+      : candidateMatch.score
+  const pipelineCounts = {
+    applied: applications.length,
+    recommended: applications.filter((item) => item.status.includes('推荐'))
+      .length,
+    interview: applications.filter((item) => item.status.includes('面试'))
+      .length,
+    offer: applications.filter((item) => item.status.includes('Offer')).length,
+  }
 
-  const screeningJob = jobs.find((job) => job.id === screeningJobId) ?? jobs[0]
-  const screenedCandidates = useMemo(() => {
-    const normalizedCandidateQuery = candidateSearch.trim().toLowerCase()
+  async function refreshAll() {
+    await loadBootstrap()
+    await loadMe()
+    await loadScreeningCandidates()
+  }
 
-    return initialCandidates
-      .map((candidate) => {
-        const match = scoreMatch(candidate.skills, screeningJob, candidate.resume)
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsBusy(true)
+    setMessage('')
 
-        return {
-          ...candidate,
-          score: match.score,
-          matchedSkills: match.matchedSkills,
-        }
+    try {
+      const path =
+        authMode === 'login' ? '/api/auth/login' : '/api/auth/register'
+      const payload =
+        authMode === 'login'
+          ? {
+              email: authForm.email,
+              password: authForm.password,
+            }
+          : authForm
+      const data = await request<AuthResponse>(path, {
+        method: 'POST',
+        body: JSON.stringify(payload),
       })
-      .filter((candidate) => {
-        const matchesScore = candidate.score >= minScore
-        const matchesQuery =
-          normalizedCandidateQuery.length === 0 ||
-          [candidate.name, candidate.title, candidate.location, candidate.source]
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedCandidateQuery)
 
-        return matchesScore && matchesQuery
-      })
-      .sort((left, right) => right.score - left.score)
-  }, [candidateSearch, minScore, screeningJob])
-
-  function handleResumeUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-
-    if (!file) {
-      return
-    }
-
-    const reader = new FileReader()
-
-    reader.onload = () => {
-      const content =
-        typeof reader.result === 'string'
-          ? reader.result
-          : `${file.name} ${resumeHighlights}`
-      const skills = uniqSkills([
-        ...extractSkills(content),
-        ...extractSkills(file.name),
-        ...extractSkills(resumeHighlights),
-      ])
-
-      setResumeProfile({
-        name: resumeProfile.name,
-        fileName: file.name,
-        fileSize: formatFileSize(file.size),
-        text: content,
-        skills: skills.length > 0 ? skills : resumeProfile.skills,
-      })
-    }
-
-    if (file.type.startsWith('text/') || file.name.endsWith('.md')) {
-      reader.readAsText(file)
-    } else {
-      reader.readAsText(new Blob([`${file.name} ${resumeHighlights}`]))
+      localStorage.setItem('hirepilot-token', data.token)
+      setToken(data.token)
+      setCurrentUser(data.user)
+      setActiveRole(data.user.role)
+      setMessage('登录状态已更新')
+      await loadBootstrap()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '登录失败')
+    } finally {
+      setIsBusy(false)
     }
   }
 
-  function handleJobSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function loginDemo(role: Role) {
+    const email =
+      role === 'candidate' ? 'candidate@demo.com' : 'recruiter@demo.com'
+    setAuthMode('login')
+    setAuthForm((current) => ({
+      ...current,
+      email,
+      password: 'demo123',
+      role,
+    }))
+    setIsBusy(true)
+    setMessage('')
 
-    const nextSkills = uniqSkills(
-      jobForm.skills
-        .split(/[,，、\n]/)
-        .map((skill) => skill.trim())
-        .filter(Boolean),
-    )
+    try {
+      const data = await request<AuthResponse>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password: 'demo123',
+        }),
+      })
 
-    if (!jobForm.title.trim() || nextSkills.length === 0) {
+      localStorage.setItem('hirepilot-token', data.token)
+      setToken(data.token)
+      setCurrentUser(data.user)
+      setActiveRole(data.user.role)
+      await loadBootstrap()
+      setMessage(`${role === 'candidate' ? '求职者' : '招聘方'}演示账号已登录`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '登录失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function saveCandidateProfile() {
+    if (!candidateProfile) {
       return
     }
 
-    const nextJob: Job = {
-      id: Date.now(),
-      title: jobForm.title.trim(),
-      department: jobForm.department,
-      location: jobForm.location,
-      type: jobForm.type,
-      level: jobForm.level,
-      salary: jobForm.salary.trim() || '面议',
-      owner: '招聘团队',
-      summary:
-        jobForm.summary.trim() ||
-        '新岗位已发布，AI 会按岗位技能自动生成候选人匹配分。',
-      skills: nextSkills,
-      posted: '刚刚',
-      applicants: 0,
-      stage: '新发布',
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      const data = await request<MeResponse>('/api/me/candidate', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: candidateProfile.name,
+          title: candidateProfile.title,
+          location: candidateProfile.location,
+          experience: candidateProfile.experience,
+          resumeHighlights,
+        }),
+      })
+
+      setCurrentUser(data.user)
+      setCandidateProfile(data.candidate)
+      await loadBootstrap()
+      setMessage('候选人档案已保存')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function handleResumeUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+
+    if (!file || !candidateProfile) {
+      return
     }
 
-    setJobs((currentJobs) => [nextJob, ...currentJobs])
-    setScreeningJobId(nextJob.id)
-    setTargetJobId(nextJob.id)
-    setMinScore(50)
-    setJobForm(defaultJobForm)
+    const body = new FormData()
+    body.append('resume', file)
+    body.append('highlights', resumeHighlights)
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      const data = await request<{ candidate: Candidate; parser: string }>(
+        '/api/resumes',
+        {
+          method: 'POST',
+          body,
+        },
+      )
+
+      setCandidateProfile(data.candidate)
+      await loadBootstrap()
+      setMessage(
+        data.parser === 'document'
+          ? '简历已解析并更新技能'
+          : '简历已上传，请继续补充亮点',
+      )
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '上传失败')
+    } finally {
+      setIsBusy(false)
+      event.target.value = ''
+    }
+  }
+
+  async function applyToJob(job: Job) {
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      const data = await request<{ application: Application }>(
+        '/api/applications',
+        {
+          method: 'POST',
+          body: JSON.stringify({ jobId: job.id }),
+        },
+      )
+      setApplications((current) => {
+        const exists = current.some(
+          (application) => application.id === data.application.id,
+        )
+
+        return exists
+          ? current.map((application) =>
+              application.id === data.application.id
+                ? data.application
+                : application,
+            )
+          : [data.application, ...current]
+      })
+      await loadBootstrap()
+      setTargetJobId(job.id)
+      setMessage('投递记录已生成')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '投递失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function submitJob(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      const payload = {
+        ...jobForm,
+        skills: parseSkills(jobForm.skills),
+      }
+      const path = editingJobId ? `/api/jobs/${editingJobId}` : '/api/jobs'
+      const data = await request<{ job: Job }>(path, {
+        method: editingJobId ? 'PATCH' : 'POST',
+        body: JSON.stringify(payload),
+      })
+
+      setJobs((current) => {
+        const exists = current.some((job) => job.id === data.job.id)
+
+        return exists
+          ? current.map((job) => (job.id === data.job.id ? data.job : job))
+          : [data.job, ...current]
+      })
+      setScreeningJobId(data.job.id)
+      setTargetJobId(data.job.id)
+      setMinScore(50)
+      setJobForm(defaultJobForm)
+      setEditingJobId('')
+      await loadBootstrap()
+      setMessage(editingJobId ? '岗位已更新' : '岗位已发布')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '岗位保存失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  function editJob(job: Job) {
+    setEditingJobId(job.id)
+    setJobForm({
+      title: job.title,
+      department: job.department,
+      location: job.location,
+      type: job.type,
+      level: job.level,
+      salary: job.salary,
+      skills: job.skills.join(', '),
+      summary: job.summary,
+      status: job.status,
+    })
+  }
+
+  async function updateJobStatus(job: Job, status: JobStatus) {
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      const data = await request<{ job: Job }>(`/api/jobs/${job.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
+      setJobs((current) =>
+        current.map((item) => (item.id === job.id ? data.job : item)),
+      )
+      await loadBootstrap()
+      setMessage('岗位状态已更新')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '状态更新失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function deleteJob(job: Job) {
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      await request(`/api/jobs/${job.id}`, {
+        method: 'DELETE',
+      })
+      setJobs((current) => current.filter((item) => item.id !== job.id))
+      setApplications((current) =>
+        current.filter((application) => application.jobId !== job.id),
+      )
+      await loadBootstrap()
+      setMessage('岗位已删除')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '删除失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  function openCandidateDetails(candidate: CandidateWithScore) {
+    const application = applications.find(
+      (item) =>
+        item.candidateId === candidate.id && item.jobId === screeningJobId,
+    )
+
+    setSelectedCandidateId(candidate.id)
+    setCandidateNotes(candidate.notes ?? '')
+    setCandidateStatus(candidate.status)
+    setApplicationStatus(application?.status ?? '已投递')
+    setApplicationNote(application?.note ?? '')
+  }
+
+  async function saveCandidateDetails() {
+    if (!selectedCandidate) {
+      return
+    }
+
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      const candidateData = await request<{ candidate: Candidate }>(
+        `/api/candidates/${selectedCandidate.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: candidateStatus,
+            notes: candidateNotes,
+          }),
+        },
+      )
+
+      setCandidates((current) =>
+        current.map((candidate) =>
+          candidate.id === candidateData.candidate.id
+            ? candidateData.candidate
+            : candidate,
+        ),
+      )
+
+      if (selectedApplication) {
+        const appData = await request<{ application: Application }>(
+          `/api/applications/${selectedApplication.id}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({
+              status: applicationStatus,
+              note: applicationNote,
+            }),
+          },
+        )
+        setApplications((current) =>
+          current.map((application) =>
+            application.id === appData.application.id
+              ? appData.application
+              : application,
+          ),
+        )
+      }
+
+      await loadBootstrap()
+      await loadScreeningCandidates()
+      setMessage('候选人详情已保存')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '保存失败')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function toggleCandidateSaved(candidate: CandidateWithScore) {
+    const nextStatus = candidate.status === '已收藏' ? '待筛选' : '已收藏'
+    setIsBusy(true)
+    setMessage('')
+
+    try {
+      await request(`/api/candidates/${candidate.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      await loadBootstrap()
+      await loadScreeningCandidates()
+      setMessage(nextStatus === '已收藏' ? '候选人已收藏' : '已取消收藏')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '操作失败')
+    } finally {
+      setIsBusy(false)
+    }
   }
 
   function updateJobForm(field: keyof JobForm, value: string) {
@@ -438,13 +827,19 @@ function App() {
     }))
   }
 
-  function toggleSavedCandidate(candidateId: number) {
-    setSavedCandidates((current) =>
-      current.includes(candidateId)
-        ? current.filter((id) => id !== candidateId)
-        : [...current, candidateId],
+  function updateCandidateProfile(field: keyof Candidate, value: string) {
+    setCandidateProfile((current) =>
+      current
+        ? {
+            ...current,
+            [field]: value,
+          }
+        : current,
     )
   }
+
+  const canSeeCandidate = currentUser?.role === 'candidate'
+  const canSeeRecruiter = currentUser?.role === 'recruiter'
 
   return (
     <div className="app-shell">
@@ -461,6 +856,7 @@ function App() {
         <nav className="role-switch" aria-label="角色切换">
           <button
             className={activeRole === 'candidate' ? 'active' : ''}
+            disabled={!canSeeCandidate}
             type="button"
             onClick={() => setActiveRole('candidate')}
           >
@@ -469,6 +865,7 @@ function App() {
           </button>
           <button
             className={activeRole === 'recruiter' ? 'active' : ''}
+            disabled={!canSeeRecruiter}
             type="button"
             onClick={() => setActiveRole('recruiter')}
           >
@@ -476,21 +873,46 @@ function App() {
             招聘方
           </button>
         </nav>
+        <div className="account-panel">
+          {currentUser ? (
+            <>
+              <span className="account-name">
+                <ShieldCheck size={16} aria-hidden="true" />
+                {currentUser.name}
+              </span>
+              <button type="button" onClick={clearSession}>
+                <LogOut size={17} aria-hidden="true" />
+                退出
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => loginDemo('candidate')}>
+                <UserRound size={17} aria-hidden="true" />
+                求职演示
+              </button>
+              <button type="button" onClick={() => loginDemo('recruiter')}>
+                <Building2 size={17} aria-hidden="true" />
+                招聘演示
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <main>
         <section className="summary-band" aria-label="招聘概览">
           <div className="metric">
             <span>活跃岗位</span>
-            <strong>{jobs.length}</strong>
+            <strong>{openJobs.length}</strong>
           </div>
           <div className="metric">
             <span>候选人库</span>
-            <strong>{initialCandidates.length + 1}</strong>
+            <strong>{candidates.length}</strong>
           </div>
           <div className="metric">
             <span>平均匹配</span>
-            <strong>86%</strong>
+            <strong>{averageScore}%</strong>
           </div>
           <div className="visual-tile">
             <img
@@ -499,12 +921,152 @@ function App() {
             />
             <div>
               <span>今日推荐</span>
-              <strong>{screenedCandidates[0]?.name ?? '暂无候选人'}</strong>
+              <strong>
+                {screenedCandidates[0]?.name ?? candidateProfile?.name ?? '待登录'}
+              </strong>
             </div>
           </div>
         </section>
 
-        {activeRole === 'candidate' ? (
+        {message ? (
+          <div className="status-banner" role="status">
+            <span>{message}</span>
+            <button type="button" onClick={() => setMessage('')}>
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+
+        {!currentUser ? (
+          <section className="auth-workspace" aria-label="账号登录">
+            <form className="tool-panel auth-card" onSubmit={submitAuth}>
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">Account</p>
+                  <h2>{authMode === 'login' ? '登录账号' : '注册账号'}</h2>
+                </div>
+                <KeyRound size={22} aria-hidden="true" />
+              </div>
+              <div className="segmented-control">
+                <button
+                  className={authMode === 'login' ? 'active' : ''}
+                  type="button"
+                  onClick={() => setAuthMode('login')}
+                >
+                  登录
+                </button>
+                <button
+                  className={authMode === 'register' ? 'active' : ''}
+                  type="button"
+                  onClick={() => setAuthMode('register')}
+                >
+                  注册
+                </button>
+              </div>
+              {authMode === 'register' ? (
+                <label className="field">
+                  <span>姓名</span>
+                  <input
+                    value={authForm.name}
+                    onChange={(event) =>
+                      setAuthForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ) : null}
+              <label className="field">
+                <span>邮箱</span>
+                <input
+                  type="email"
+                  value={authForm.email}
+                  onChange={(event) =>
+                    setAuthForm((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>密码</span>
+                <input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(event) =>
+                    setAuthForm((current) => ({
+                      ...current,
+                      password: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+              {authMode === 'register' ? (
+                <div className="segmented-control role-choice">
+                  <button
+                    className={authForm.role === 'candidate' ? 'active' : ''}
+                    type="button"
+                    onClick={() =>
+                      setAuthForm((current) => ({
+                        ...current,
+                        role: 'candidate',
+                      }))
+                    }
+                  >
+                    <UserRound size={16} aria-hidden="true" />
+                    求职者
+                  </button>
+                  <button
+                    className={authForm.role === 'recruiter' ? 'active' : ''}
+                    type="button"
+                    onClick={() =>
+                      setAuthForm((current) => ({
+                        ...current,
+                        role: 'recruiter',
+                      }))
+                    }
+                  >
+                    <Building2 size={16} aria-hidden="true" />
+                    招聘方
+                  </button>
+                </div>
+              ) : null}
+              <button className="primary-action" disabled={isBusy} type="submit">
+                {authMode === 'login' ? (
+                  <KeyRound size={18} aria-hidden="true" />
+                ) : (
+                  <UserPlus size={18} aria-hidden="true" />
+                )}
+                {authMode === 'login' ? '登录' : '注册'}
+              </button>
+            </form>
+            <section className="content-panel auth-overview">
+              <div className="panel-heading split">
+                <div>
+                  <p className="eyebrow">Demo</p>
+                  <h2>演示账号</h2>
+                </div>
+                <Database size={22} aria-hidden="true" />
+              </div>
+              <div className="demo-grid">
+                <button type="button" onClick={() => loginDemo('candidate')}>
+                  <UserRound size={22} aria-hidden="true" />
+                  <span>candidate@demo.com</span>
+                  <strong>求职者</strong>
+                </button>
+                <button type="button" onClick={() => loginDemo('recruiter')}>
+                  <Building2 size={22} aria-hidden="true" />
+                  <span>recruiter@demo.com</span>
+                  <strong>招聘方</strong>
+                </button>
+              </div>
+            </section>
+          </section>
+        ) : null}
+
+        {currentUser && activeRole === 'candidate' && candidateProfile ? (
           <section className="workspace" aria-label="求职者工作台">
             <aside className="tool-panel profile-panel">
               <div className="panel-heading">
@@ -515,24 +1077,53 @@ function App() {
                 <BadgeCheck size={22} aria-hidden="true" />
               </div>
 
-              <label className="field">
-                <span>姓名</span>
-                <input
-                  value={resumeProfile.name}
-                  onChange={(event) =>
-                    setResumeProfile((current) => ({
-                      ...current,
-                      name: event.target.value,
-                    }))
-                  }
-                />
-              </label>
+              <div className="field-grid">
+                <label className="field">
+                  <span>姓名</span>
+                  <input
+                    value={candidateProfile.name}
+                    onChange={(event) =>
+                      updateCandidateProfile('name', event.target.value)
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>城市</span>
+                  <input
+                    value={candidateProfile.location}
+                    onChange={(event) =>
+                      updateCandidateProfile('location', event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="field-grid">
+                <label className="field">
+                  <span>求职方向</span>
+                  <input
+                    value={candidateProfile.title}
+                    onChange={(event) =>
+                      updateCandidateProfile('title', event.target.value)
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>经验</span>
+                  <input
+                    value={candidateProfile.experience}
+                    onChange={(event) =>
+                      updateCandidateProfile('experience', event.target.value)
+                    }
+                  />
+                </label>
+              </div>
 
               <label className="upload-zone">
                 <UploadCloud size={28} aria-hidden="true" />
                 <span>上传简历</span>
-                <strong>{resumeProfile.fileName || 'PDF / DOC / TXT'}</strong>
-                <small>{resumeProfile.fileSize || '本地解析技能关键词'}</small>
+                <strong>{candidateProfile.resumeFile || 'PDF / DOCX / TXT'}</strong>
+                <small>后端解析并更新技能</small>
                 <input
                   type="file"
                   accept=".pdf,.doc,.docx,.txt,.md"
@@ -548,6 +1139,16 @@ function App() {
                   rows={5}
                 />
               </label>
+
+              <button
+                className="primary-action"
+                disabled={isBusy}
+                type="button"
+                onClick={saveCandidateProfile}
+              >
+                <Save size={18} aria-hidden="true" />
+                保存档案
+              </button>
 
               <div className="score-block">
                 <div>
@@ -622,12 +1223,12 @@ function App() {
               <div className="job-grid">
                 {visibleJobs.map((job) => {
                   const match = scoreMatch(
-                    uniqSkills([
-                      ...resumeProfile.skills,
-                      ...extractSkills(resumeHighlights),
-                    ]),
+                    currentCandidateSkills,
                     job,
-                    `${resumeProfile.text} ${resumeHighlights}`,
+                    `${candidateProfile.resume} ${resumeHighlights}`,
+                  )
+                  const application = candidateApplications.find(
+                    (item) => item.jobId === job.id,
                   )
 
                   return (
@@ -644,7 +1245,7 @@ function App() {
                           {job.location}
                         </span>
                         <span>
-                          <Clock3 size={15} aria-hidden="true" />
+                          <CalendarCheck size={15} aria-hidden="true" />
                           {job.type}
                         </span>
                         <span>{job.salary}</span>
@@ -669,31 +1270,71 @@ function App() {
                           <strong>{match.score}</strong>
                         </div>
                         <button
+                          disabled={Boolean(application) || isBusy}
                           type="button"
-                          onClick={() => setTargetJobId(job.id)}
+                          onClick={() => applyToJob(job)}
                         >
-                          <ChevronRight size={18} aria-hidden="true" />
-                          投递
+                          {application ? (
+                            <CheckCircle2 size={18} aria-hidden="true" />
+                          ) : (
+                            <Send size={18} aria-hidden="true" />
+                          )}
+                          {application ? application.status : '投递'}
                         </button>
                       </div>
                     </article>
                   )
                 })}
               </div>
+
+              <section className="application-panel" aria-label="我的投递">
+                <div className="panel-heading split">
+                  <div>
+                    <p className="eyebrow">Applications</p>
+                    <h2>我的投递</h2>
+                  </div>
+                  <ClipboardList size={22} aria-hidden="true" />
+                </div>
+                <div className="application-list">
+                  {candidateApplications.length === 0 ? (
+                    <div className="empty-state compact">
+                      <FileText size={24} aria-hidden="true" />
+                      <strong>暂无投递记录</strong>
+                    </div>
+                  ) : (
+                    candidateApplications.map((application) => {
+                      const job = jobs.find((item) => item.id === application.jobId)
+
+                      return (
+                        <article className="application-item" key={application.id}>
+                          <div>
+                            <strong>{job?.title ?? '岗位已删除'}</strong>
+                            <span>{formatDate(application.createdAt)}</span>
+                          </div>
+                          <p>{application.note}</p>
+                          <span className="source-pill">{application.status}</span>
+                        </article>
+                      )
+                    })
+                  )}
+                </div>
+              </section>
             </section>
           </section>
-        ) : (
+        ) : null}
+
+        {currentUser && activeRole === 'recruiter' ? (
           <section className="workspace recruiter-workspace" aria-label="招聘方工作台">
             <aside className="tool-panel">
               <div className="panel-heading">
                 <div>
                   <p className="eyebrow">Recruiter</p>
-                  <h2>岗位发布</h2>
+                  <h2>{editingJobId ? '编辑岗位' : '岗位发布'}</h2>
                 </div>
                 <Plus size={22} aria-hidden="true" />
               </div>
 
-              <form className="job-form" onSubmit={handleJobSubmit}>
+              <form className="job-form" onSubmit={submitJob}>
                 <label className="field">
                   <span>岗位名称</span>
                   <input
@@ -754,21 +1395,38 @@ function App() {
                     </select>
                   </label>
                   <label className="field">
-                    <span>经验</span>
+                    <span>状态</span>
                     <select
-                      value={jobForm.level}
+                      value={jobForm.status}
                       onChange={(event) =>
-                        updateJobForm('level', event.target.value)
+                        setJobForm((current) => ({
+                          ...current,
+                          status: event.target.value as JobStatus,
+                        }))
                       }
                     >
-                      <option>应届</option>
-                      <option>1-3 年</option>
-                      <option>3-5 年</option>
-                      <option>5 年以上</option>
-                      <option>中高级</option>
+                      <option value="open">招聘中</option>
+                      <option value="paused">已暂停</option>
+                      <option value="closed">已关闭</option>
                     </select>
                   </label>
                 </div>
+
+                <label className="field">
+                  <span>经验</span>
+                  <select
+                    value={jobForm.level}
+                    onChange={(event) =>
+                      updateJobForm('level', event.target.value)
+                    }
+                  >
+                    <option>应届</option>
+                    <option>1-3 年</option>
+                    <option>3-5 年</option>
+                    <option>5 年以上</option>
+                    <option>中高级</option>
+                  </select>
+                </label>
 
                 <label className="field">
                   <span>薪资</span>
@@ -803,11 +1461,73 @@ function App() {
                   />
                 </label>
 
-                <button className="primary-action" type="submit">
-                  <Plus size={18} aria-hidden="true" />
-                  发布岗位
-                </button>
+                <div className="button-row">
+                  <button
+                    className="primary-action"
+                    disabled={isBusy}
+                    type="submit"
+                  >
+                    {editingJobId ? (
+                      <Save size={18} aria-hidden="true" />
+                    ) : (
+                      <Plus size={18} aria-hidden="true" />
+                    )}
+                    {editingJobId ? '保存岗位' : '发布岗位'}
+                  </button>
+                  {editingJobId ? (
+                    <button
+                      className="secondary-action"
+                      type="button"
+                      onClick={() => {
+                        setEditingJobId('')
+                        setJobForm(defaultJobForm)
+                      }}
+                    >
+                      <X size={18} aria-hidden="true" />
+                      取消
+                    </button>
+                  ) : null}
+                </div>
               </form>
+
+              <div className="management-list">
+                <div className="panel-heading compact-heading">
+                  <div>
+                    <p className="eyebrow">Manage</p>
+                    <h2>岗位管理</h2>
+                  </div>
+                  <button type="button" onClick={refreshAll}>
+                    <RefreshCw size={17} aria-hidden="true" />
+                  </button>
+                </div>
+                {jobs.map((job) => (
+                  <article className="management-item" key={job.id}>
+                    <div>
+                      <strong>{job.title}</strong>
+                      <span>{statusLabel(job.status)} · {job.applicants} 份简历</span>
+                    </div>
+                    <div className="icon-actions">
+                      <button type="button" onClick={() => editJob(job)}>
+                        <Edit3 size={16} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateJobStatus(
+                            job,
+                            job.status === 'open' ? 'paused' : 'open',
+                          )
+                        }
+                      >
+                        <CalendarCheck size={16} aria-hidden="true" />
+                      </button>
+                      <button type="button" onClick={() => deleteJob(job)}>
+                        <Trash2 size={16} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </aside>
 
             <section className="content-panel" aria-label="简历筛选">
@@ -831,9 +1551,7 @@ function App() {
                   <SlidersHorizontal size={16} aria-hidden="true" />
                   <select
                     value={screeningJobId}
-                    onChange={(event) =>
-                      setScreeningJobId(Number(event.target.value))
-                    }
+                    onChange={(event) => setScreeningJobId(event.target.value)}
                   >
                     {jobs.map((job) => (
                       <option value={job.id} key={job.id}>
@@ -863,74 +1581,195 @@ function App() {
                   </div>
                 ) : (
                   screenedCandidates.map((candidate) => (
-                  <article className="candidate-card" key={candidate.id}>
-                    <div className="candidate-avatar" aria-hidden="true">
-                      {candidate.name.slice(0, 1)}
-                    </div>
-                    <div className="candidate-main">
-                      <div className="candidate-heading">
-                        <div>
-                          <h3>{candidate.name}</h3>
-                          <p>
-                            {candidate.title} · {candidate.location} ·{' '}
-                            {candidate.experience}
-                          </p>
+                    <article className="candidate-card" key={candidate.id}>
+                      <div className="candidate-avatar" aria-hidden="true">
+                        {candidate.name.slice(0, 1)}
+                      </div>
+                      <div className="candidate-main">
+                        <div className="candidate-heading">
+                          <div>
+                            <h3>{candidate.name}</h3>
+                            <p>
+                              {candidate.title} · {candidate.location} ·{' '}
+                              {candidate.experience}
+                            </p>
+                          </div>
+                          <span className="source-pill">{candidate.source}</span>
                         </div>
-                        <span className="source-pill">{candidate.source}</span>
+                        <p className="resume-line">{candidate.resume}</p>
+                        <div className="chip-row">
+                          {candidate.skills.map((skill) => (
+                            <span
+                              className={
+                                candidate.matchedSkills.includes(skill)
+                                  ? 'chip matched'
+                                  : 'chip'
+                              }
+                              key={skill}
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <p className="resume-line">{candidate.resume}</p>
-                      <div className="chip-row">
-                        {candidate.skills.map((skill) => (
-                          <span
-                            className={
-                              candidate.matchedSkills.includes(skill)
-                                ? 'chip matched'
-                                : 'chip'
-                            }
-                            key={skill}
-                          >
-                            {skill}
-                          </span>
-                        ))}
+                      <div className="candidate-score">
+                        <span>匹配分</span>
+                        <strong>{candidate.score}</strong>
+                        <meter min="0" max="100" value={candidate.score} />
+                        <button
+                          type="button"
+                          className={
+                            candidate.status === '已收藏' ? 'saved' : ''
+                          }
+                          onClick={() => toggleCandidateSaved(candidate)}
+                        >
+                          <CheckCircle2 size={18} aria-hidden="true" />
+                          {candidate.status === '已收藏' ? '已收藏' : '收藏'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openCandidateDetails(candidate)}
+                        >
+                          <Eye size={18} aria-hidden="true" />
+                          详情
+                        </button>
                       </div>
-                    </div>
-                    <div className="candidate-score">
-                      <span>匹配分</span>
-                      <strong>{candidate.score}</strong>
-                      <meter min="0" max="100" value={candidate.score} />
-                      <button
-                        type="button"
-                        className={
-                          savedCandidates.includes(candidate.id)
-                            ? 'saved'
-                            : ''
-                        }
-                        onClick={() => toggleSavedCandidate(candidate.id)}
-                      >
-                        <CheckCircle2 size={18} aria-hidden="true" />
-                        {savedCandidates.includes(candidate.id)
-                          ? '已收藏'
-                          : '收藏'}
-                      </button>
-                    </div>
-                  </article>
+                    </article>
                   ))
                 )}
               </div>
             </section>
           </section>
-        )}
+        ) : null}
 
-        <section className="pipeline-band" aria-label="招聘漏斗">
-          {['新简历', 'AI 推荐', '业务面试', 'Offer'].map((stage, index) => (
-            <div className="pipeline-step" key={stage}>
-              <FileText size={18} aria-hidden="true" />
-              <span>{stage}</span>
-              <strong>{[34, 18, 9, 3][index]}</strong>
-            </div>
-          ))}
-        </section>
+        {currentUser ? (
+          <section className="pipeline-band" aria-label="招聘漏斗">
+            {[
+              ['新简历', pipelineCounts.applied],
+              ['AI 推荐', pipelineCounts.recommended],
+              ['业务面试', pipelineCounts.interview],
+              ['Offer', pipelineCounts.offer],
+            ].map(([stage, count]) => (
+              <div className="pipeline-step" key={stage}>
+                <FileText size={18} aria-hidden="true" />
+                <span>{stage}</span>
+                <strong>{count}</strong>
+              </div>
+            ))}
+          </section>
+        ) : null}
       </main>
+
+      {selectedCandidate ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-label="候选人详情"
+            className="candidate-modal"
+            role="dialog"
+          >
+            <div className="panel-heading split">
+              <div>
+                <p className="eyebrow">Candidate Detail</p>
+                <h2>{selectedCandidate.name}</h2>
+              </div>
+              <button type="button" onClick={() => setSelectedCandidateId('')}>
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="detail-grid">
+              <div>
+                <span>方向</span>
+                <strong>{selectedCandidate.title}</strong>
+              </div>
+              <div>
+                <span>城市</span>
+                <strong>{selectedCandidate.location}</strong>
+              </div>
+              <div>
+                <span>经验</span>
+                <strong>{selectedCandidate.experience}</strong>
+              </div>
+              <div>
+                <span>简历文件</span>
+                <strong>{selectedCandidate.resumeFile || '未上传'}</strong>
+              </div>
+            </div>
+
+            <div className="chip-row modal-chips">
+              {selectedCandidate.skills.map((skill) => (
+                <span className="chip matched" key={skill}>
+                  {skill}
+                </span>
+              ))}
+            </div>
+
+            <p className="resume-detail">{selectedCandidate.resume}</p>
+
+            <div className="field-grid">
+              <label className="field">
+                <span>候选人状态</span>
+                <select
+                  value={candidateStatus}
+                  onChange={(event) => setCandidateStatus(event.target.value)}
+                >
+                  <option>待筛选</option>
+                  <option>已收藏</option>
+                  <option>已约面</option>
+                  <option>已淘汰</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>投递状态</span>
+                <select
+                  disabled={!selectedApplication}
+                  value={applicationStatus}
+                  onChange={(event) => setApplicationStatus(event.target.value)}
+                >
+                  <option>已投递</option>
+                  <option>AI 推荐</option>
+                  <option>业务面试</option>
+                  <option>Offer</option>
+                  <option>不合适</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="field">
+              <span>招聘备注</span>
+              <textarea
+                value={candidateNotes}
+                onChange={(event) => setCandidateNotes(event.target.value)}
+                rows={4}
+              />
+            </label>
+
+            <label className="field">
+              <span>投递备注</span>
+              <textarea
+                disabled={!selectedApplication}
+                value={
+                  selectedApplication
+                    ? applicationNote
+                    : '当前岗位暂无投递记录'
+                }
+                onChange={(event) => setApplicationNote(event.target.value)}
+                rows={3}
+              />
+            </label>
+
+            <button
+              className="primary-action"
+              disabled={isBusy}
+              type="button"
+              onClick={saveCandidateDetails}
+            >
+              <Save size={18} aria-hidden="true" />
+              保存详情
+            </button>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }

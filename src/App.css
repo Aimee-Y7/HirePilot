@@ -111,14 +111,74 @@ h3 {
   background: #163f3c;
 }
 
+.role-switch button:disabled {
+  color: #9aa6a2;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .role-switch button:hover,
 .card-action button:hover,
 .candidate-score button:hover {
   transform: translateY(-1px);
 }
 
+.account-panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-panel button,
+.secondary-action,
+.icon-actions button,
+.management-list .panel-heading button,
+.candidate-modal .panel-heading button,
+.status-banner button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.account-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: #163f3c;
+  background: #e7f3ef;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 main {
   padding: 24px clamp(20px, 4vw, 56px) 40px;
+}
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid #cfe3dc;
+  border-radius: 8px;
+  color: #163f3c;
+  background: #eaf6f1;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .summary-band {
@@ -207,6 +267,13 @@ main {
   align-items: start;
 }
 
+.auth-workspace {
+  display: grid;
+  grid-template-columns: minmax(290px, 380px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .tool-panel,
 .content-panel {
   padding: 20px;
@@ -279,6 +346,13 @@ textarea {
   min-height: 96px;
   resize: vertical;
   padding: 11px 12px;
+}
+
+textarea:disabled,
+select:disabled,
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
 input:focus,
@@ -542,6 +616,92 @@ meter::-moz-meter-bar {
   padding: 0 16px;
 }
 
+.button-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.secondary-action {
+  min-height: 44px;
+  padding: 0 14px;
+  color: #163f3c;
+  background: #f7fbf8;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.segmented-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.segmented-control button.active {
+  color: #ffffff;
+  background: #163f3c;
+}
+
+.auth-overview {
+  min-height: 300px;
+}
+
+.demo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.demo-grid button {
+  display: grid;
+  min-height: 180px;
+  align-content: center;
+  justify-items: start;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.demo-grid button svg {
+  color: #e65f3d;
+}
+
+.demo-grid button span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.demo-grid button strong {
+  color: var(--ink-strong);
+  font-size: 22px;
+}
+
 .range-field {
   min-width: 250px;
 }
@@ -555,6 +715,43 @@ meter::-moz-meter-bar {
 .candidate-list {
   display: grid;
   gap: 12px;
+}
+
+.application-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.application-list {
+  display: grid;
+  gap: 10px;
+}
+
+.application-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.application-item div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.application-item strong {
+  color: var(--ink-strong);
+}
+
+.application-item span,
+.application-item p {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .empty-state {
@@ -582,6 +779,10 @@ meter::-moz-meter-bar {
 .empty-state span {
   font-size: 13px;
   font-weight: 700;
+}
+
+.empty-state.compact {
+  min-height: 112px;
 }
 
 .candidate-card {
@@ -627,6 +828,129 @@ meter::-moz-meter-bar {
 .candidate-score button.saved {
   color: #ffffff;
   background: #163f3c;
+}
+
+.management-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.compact-heading {
+  margin-bottom: 4px;
+}
+
+.management-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.management-item div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.management-item strong {
+  overflow: hidden;
+  color: var(--ink-strong);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-item span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.icon-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.icon-actions button,
+.management-list .panel-heading button,
+.candidate-modal .panel-heading button,
+.status-banner button {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(16, 33, 31, 0.36);
+  backdrop-filter: blur(8px);
+}
+
+.candidate-modal {
+  display: grid;
+  width: min(720px, 100%);
+  max-height: min(840px, calc(100vh - 40px));
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(16, 33, 31, 0.22);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.detail-grid div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f7f8f4;
+}
+
+.detail-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.detail-grid strong {
+  overflow: hidden;
+  color: var(--ink-strong);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-chips {
+  margin-bottom: 14px;
+}
+
+.resume-detail {
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fbfcf8;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .pipeline-band {
@@ -688,6 +1012,16 @@ meter::-moz-meter-bar {
     width: 100%;
   }
 
+  .account-panel {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .account-panel button,
+  .account-name {
+    flex: 1 1 0;
+  }
+
   .role-switch button {
     flex: 1 1 0;
   }
@@ -706,7 +1040,8 @@ meter::-moz-meter-bar {
   }
 
   .job-grid,
-  .pipeline-band {
+  .pipeline-band,
+  .auth-workspace {
     grid-template-columns: 1fr;
   }
 
@@ -716,6 +1051,10 @@ meter::-moz-meter-bar {
 
   .candidate-score {
     grid-column: 1 / -1;
+  }
+
+  .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -748,5 +1087,20 @@ meter::-moz-meter-bar {
 
   .range-field input {
     width: 100%;
+  }
+
+  .demo-grid,
+  .button-row,
+  .management-item,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .icon-actions {
+    width: 100%;
+  }
+
+  .icon-actions button {
+    flex: 1 1 0;
   }
 }

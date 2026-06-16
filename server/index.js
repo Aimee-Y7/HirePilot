@@ -89,41 +89,106 @@ function firstRegexMatch(text, patterns) {
   return ''
 }
 
+function normalizeOriginalName(fileName) {
+  const originalName = String(fileName ?? '')
+
+  if (!/[ÃÂäåçæ]/.test(originalName)) {
+    return originalName
+  }
+
+  try {
+    const decodedName = Buffer.from(originalName, 'latin1').toString('utf8')
+
+    return decodedName.includes('�') ? originalName : decodedName
+  } catch {
+    return originalName
+  }
+}
+
+function isLikelyChineseName(line) {
+  return (
+    /^[一-龥]{2,4}$/.test(line) &&
+    !/(简历|求职|应聘|电话|手机|邮箱|工作|经验|技能|项目|教育|地址)/.test(line)
+  )
+}
+
+function inferTitleFromLines(lines) {
+  const titleKeywords = [
+    'AI 招聘产品经理',
+    '招聘产品经理',
+    '产品经理',
+    '前端工程师',
+    '后端工程师',
+    '全栈工程师',
+    '数据分析师',
+    '算法工程师',
+    'NLP 算法工程师',
+    '机器学习工程师',
+    '招聘运营经理',
+    '企业销售经理',
+    '薪酬绩效专家',
+    '用户研究员',
+    '项目运营经理',
+    'HRBP',
+  ]
+  const titleLine = lines.find((line) =>
+    titleKeywords.some((keyword) => line.includes(keyword)),
+  )
+
+  if (!titleLine) {
+    return ''
+  }
+
+  return titleKeywords.find((keyword) => titleLine.includes(keyword)) ?? ''
+}
+
 function deriveResumeProfile(text, fileName = '') {
   const content = String(text ?? '')
   const normalizedLines = content
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .flatMap((line) => line.split(/\t| {2,}|　+/))
+    .map((line) => line.trim().replace(/\s+/g, ' '))
     .filter(Boolean)
   const compactText = normalizedLines.join('\n')
-  const cityMatch = compactText.match(
-    /(上海|北京|深圳|杭州|广州|成都|南京|苏州|武汉|西安|远程)/,
-  )
-  const experienceMatch = compactText.match(
-    /(?:工作经验|经验|从业经验|年限)[:：\s]*([0-9一二三四五六七八九十]+)\s*年|([0-9]+)\s*年(?:工作|经验|从业)/,
-  )
+  const normalizedFileName = normalizeOriginalName(fileName)
+  const cityMatch =
+    compactText.match(
+      /(?:现居地|所在地|所在城市|居住地|城市|期望城市|地址)[:：\s]*(上海|北京|深圳|杭州|广州|成都|南京|苏州|武汉|西安|远程)/,
+    ) ??
+    compactText.match(
+      /(上海|北京|深圳|杭州|广州|成都|南京|苏州|武汉|西安|远程)/,
+    )
+  const experience = firstRegexMatch(compactText, [
+    /(?:工作经验|从业经验|项目经验|年限|经验)[:：\s]*([0-9一二三四五六七八九十]+\s*年(?:以上)?)/,
+    /([0-9一二三四五六七八九十]+\s*年(?:以上)?)(?:工作|经验|从业|B 端|B端|产品|研发|运营)/,
+    /(?:拥有|具备|累计)([0-9一二三四五六七八九十]+\s*年(?:以上)?)/,
+  ])
+    .replace(/\s+/g, ' ')
+    .replace(/\s*年/g, ' 年')
+    .trim()
   const inferredName =
     firstRegexMatch(compactText, [
       /(?:姓名|名字|Name)[:：\s]+([^\n\r,，;；|｜]{2,12})/i,
       /^([一-龥]{2,4})\s*(?:\||｜|-|，|,|\s)+(?:求职|应聘|目标|岗位|方向)/,
+      /^([一-龥]{2,4})\s*(?:\||｜|-|，|,|\s)+(?:[0-9一二三四五六七八九十]+\s*年|男|女|本科|硕士|博士)/,
     ]) ||
-    fileName
+    normalizedLines.find(isLikelyChineseName) ||
+    normalizedFileName
       .replace(/\.[^.]+$/, '')
       .match(/^([一-龥]{2,4})/)?.[1] ||
     ''
-  const inferredTitle = firstRegexMatch(compactText, [
-    /(?:求职意向|目标岗位|应聘岗位|求职方向|意向岗位)[:：\s]+([^\n\r,，;；|｜]{2,32})/,
-    /(?:应聘|求职)[:：\s]*([^\n\r,，;；|｜]{2,32})/,
-  ])
-  const inferredExperience = experienceMatch
-    ? `${experienceMatch[1] ?? experienceMatch[2]} 年`
-    : ''
+  const inferredTitle =
+    firstRegexMatch(compactText, [
+      /(?:求职意向|目标岗位|应聘岗位|求职方向|意向岗位|目标职位|期望职位)[:：\s]+([^\n\r,，;；|｜]{2,32})/,
+      /(?:应聘|求职)[:：\s]*([^\n\r,，;；|｜]{2,32})/,
+    ]) || inferTitleFromLines(normalizedLines)
 
   return {
     name: inferredName,
     title: inferredTitle,
     location: cityMatch?.[1] ?? '',
-    experience: inferredExperience,
+    experience,
+    fileName: normalizedFileName,
   }
 }
 
@@ -873,10 +938,11 @@ app.post(
     try {
       const parsedText = await parseResumeFile(req.file)
       const highlights = String(req.body.highlights ?? '')
-      const fallbackText = parsedText || `${req.file.originalname} ${highlights}`
+      const normalizedFileName = normalizeOriginalName(req.file.originalname)
+      const fallbackText = parsedText || `${normalizedFileName} ${highlights}`
       const parsedProfile = deriveResumeProfile(
         `${fallbackText}\n${highlights}`,
-        req.file.originalname,
+        normalizedFileName,
       )
       const skills = uniqSkills([
         ...candidate.skills,
@@ -903,7 +969,7 @@ app.post(
 
       candidate.resume = fallbackText
       candidate.resumeHighlights = highlights || candidate.resumeHighlights
-      candidate.resumeFile = req.file.originalname
+      candidate.resumeFile = parsedProfile.fileName || normalizedFileName
       candidate.skills = skills
       candidate.source = '官网投递'
       await writeDb(req.db)

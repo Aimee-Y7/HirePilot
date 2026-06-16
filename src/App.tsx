@@ -618,20 +618,29 @@ function App() {
     setMessage('')
 
     try {
-      const data = await request<{ candidate: Candidate; parser: string }>(
-        '/api/resumes',
-        {
-          method: 'POST',
-          body,
-        },
-      )
+      const data = await request<{
+        candidate: Candidate
+        parser: string
+        parsedProfile: Partial<Candidate>
+      }>('/api/resumes', {
+        method: 'POST',
+        body,
+      })
 
       setCandidateProfile(data.candidate)
+      setResumeHighlights(data.candidate.resumeHighlights ?? '')
       await loadBootstrap()
+      await loadMe()
+      const updatedFields = [
+        data.parsedProfile.name ? '姓名' : '',
+        data.parsedProfile.title ? '求职方向' : '',
+        data.parsedProfile.location ? '城市' : '',
+        data.parsedProfile.experience ? '经验' : '',
+      ].filter(Boolean)
       setMessage(
         data.parser === 'document'
-          ? '简历已解析并更新技能'
-          : '简历已上传，请继续补充亮点',
+          ? `简历已解析，已更新${updatedFields.join('、') || '技能'}`
+          : `简历已上传，已更新${updatedFields.join('、') || '技能'}`,
       )
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '上传失败')

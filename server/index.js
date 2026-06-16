@@ -77,6 +77,56 @@ function extractSkills(text) {
   )
 }
 
+function firstRegexMatch(text, patterns) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+
+    if (match?.[1]) {
+      return match[1].trim().replace(/[，,；;。.\s]+$/, '')
+    }
+  }
+
+  return ''
+}
+
+function deriveResumeProfile(text, fileName = '') {
+  const content = String(text ?? '')
+  const normalizedLines = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  const compactText = normalizedLines.join('\n')
+  const cityMatch = compactText.match(
+    /(上海|北京|深圳|杭州|广州|成都|南京|苏州|武汉|西安|远程)/,
+  )
+  const experienceMatch = compactText.match(
+    /(?:工作经验|经验|从业经验|年限)[:：\s]*([0-9一二三四五六七八九十]+)\s*年|([0-9]+)\s*年(?:工作|经验|从业)/,
+  )
+  const inferredName =
+    firstRegexMatch(compactText, [
+      /(?:姓名|名字|Name)[:：\s]+([^\n\r,，;；|｜]{2,12})/i,
+      /^([一-龥]{2,4})\s*(?:\||｜|-|，|,|\s)+(?:求职|应聘|目标|岗位|方向)/,
+    ]) ||
+    fileName
+      .replace(/\.[^.]+$/, '')
+      .match(/^([一-龥]{2,4})/)?.[1] ||
+    ''
+  const inferredTitle = firstRegexMatch(compactText, [
+    /(?:求职意向|目标岗位|应聘岗位|求职方向|意向岗位)[:：\s]+([^\n\r,，;；|｜]{2,32})/,
+    /(?:应聘|求职)[:：\s]*([^\n\r,，;；|｜]{2,32})/,
+  ])
+  const inferredExperience = experienceMatch
+    ? `${experienceMatch[1] ?? experienceMatch[2]} 年`
+    : ''
+
+  return {
+    name: inferredName,
+    title: inferredTitle,
+    location: cityMatch?.[1] ?? '',
+    experience: inferredExperience,
+  }
+}
+
 function scoreMatch(candidateSkills, job, resumeText = '') {
   const requiredSkills = job.skills.length > 0 ? job.skills : ['通用能力']
   const matchedSkills = requiredSkills.filter((skill) =>
@@ -824,11 +874,32 @@ app.post(
       const parsedText = await parseResumeFile(req.file)
       const highlights = String(req.body.highlights ?? '')
       const fallbackText = parsedText || `${req.file.originalname} ${highlights}`
+      const parsedProfile = deriveResumeProfile(
+        `${fallbackText}\n${highlights}`,
+        req.file.originalname,
+      )
       const skills = uniqSkills([
         ...candidate.skills,
         ...extractSkills(fallbackText),
         ...extractSkills(highlights),
       ])
+
+      if (parsedProfile.name) {
+        candidate.name = parsedProfile.name
+        req.user.name = parsedProfile.name
+      }
+
+      if (parsedProfile.title) {
+        candidate.title = parsedProfile.title
+      }
+
+      if (parsedProfile.location) {
+        candidate.location = parsedProfile.location
+      }
+
+      if (parsedProfile.experience) {
+        candidate.experience = parsedProfile.experience
+      }
 
       candidate.resume = fallbackText
       candidate.resumeHighlights = highlights || candidate.resumeHighlights
@@ -841,6 +912,7 @@ app.post(
         candidate,
         parsedLength: fallbackText.length,
         parser: parsedText ? 'document' : 'fallback',
+        parsedProfile,
       })
     } catch (error) {
       res.status(422).json({

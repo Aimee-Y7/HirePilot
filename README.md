@@ -73,6 +73,7 @@ npm run lint
 
 ## 数据说明
 
+- 初始演示数据包含 7 个用户、10 个岗位、12 个候选人、9 条投递记录。
 - `server/data/db.json` 是运行时数据库，已加入 `.gitignore`。
 - `server/uploads/` 是上传暂存目录，上传完成后文件会被清理。
 - 如需恢复初始演示数据，删除 `server/data/db.json` 后重启 API。

@@ -177,6 +177,12 @@ const defaultAuthForm: AuthForm = {
   role: 'candidate',
 }
 
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+
+function apiPath(path: string) {
+  return `${apiBaseUrl}${path}`
+}
+
 function parseSkills(input: string) {
   return input
     .split(/[,，、\n]/)
@@ -292,7 +298,7 @@ function App() {
         headers.set('Content-Type', 'application/json')
       }
 
-      const response = await fetch(path, {
+      const response = await fetch(apiPath(path), {
         ...options,
         headers,
       })

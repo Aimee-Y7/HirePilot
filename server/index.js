@@ -9,9 +9,15 @@ import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const dataDir = path.join(__dirname, 'data')
+const isServerlessRuntime =
+  process.env.NETLIFY === 'true' || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME)
+const dataDir = isServerlessRuntime
+  ? path.join('/tmp', 'hirepilot-data')
+  : path.join(__dirname, 'data')
 const dbPath = path.join(dataDir, 'db.json')
-const uploadDir = path.join(__dirname, 'uploads')
+const uploadDir = isServerlessRuntime
+  ? path.join('/tmp', 'hirepilot-uploads')
+  : path.join(__dirname, 'uploads')
 const port = Number(process.env.PORT ?? 4174)
 const sessions = new Map()
 
@@ -1359,6 +1365,10 @@ app.use((error, _req, res, _next) => {
 
 await ensureDatabase()
 
-app.listen(port, () => {
-  console.log(`HirePilot API listening on http://127.0.0.1:${port}`)
-})
+if (!isServerlessRuntime) {
+  app.listen(port, () => {
+    console.log(`HirePilot API listening on http://127.0.0.1:${port}`)
+  })
+}
+
+export { app, ensureDatabase }

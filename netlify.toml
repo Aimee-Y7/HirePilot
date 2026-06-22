@@ -1,12 +1,10 @@
 [build]
-  command = "npm run build"
+  command = "npm run build:netlify"
   publish = "dist"
 
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  external_node_modules = ["cors", "express", "mammoth", "multer", "pdf-parse"]
-  included_files = ["server/**"]
 
 [[redirects]]
   from = "/api/*"

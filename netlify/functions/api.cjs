@@ -4,7 +4,9 @@ let cachedHandler
 
 async function getHandler() {
   if (!cachedHandler) {
-    const { app, ensureDatabase } = await import('../../server/index.js')
+    const { app, ensureDatabase } = await import(
+      './generated/server-bundle.mjs'
+    )
     await ensureDatabase()
 
     cachedHandler = serverless(app, {

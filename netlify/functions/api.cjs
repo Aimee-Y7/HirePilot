@@ -1,15 +1,10 @@
 const serverless = require('serverless-http')
-const path = require('node:path')
-const { pathToFileURL } = require('node:url')
 
 let cachedHandler
 
 async function getHandler() {
   if (!cachedHandler) {
-    const serverEntry = pathToFileURL(
-      path.join(process.cwd(), 'server', 'index.js'),
-    ).href
-    const { app, ensureDatabase } = await import(serverEntry)
+    const { app, ensureDatabase } = await import('../../server/index.js')
     await ensureDatabase()
 
     cachedHandler = serverless(app, {

@@ -10,7 +10,6 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-netlify/functions/generated
 *.local
 server/data/db.json
 server/uploads/*

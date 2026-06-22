@@ -2,7 +2,7 @@ import { build } from 'esbuild'
 
 await build({
   entryPoints: ['server/index.js'],
-  outfile: 'netlify/functions/generated/server-bundle.mjs',
+  outfile: 'netlify/functions/server-bundle.mjs',
   bundle: true,
   platform: 'node',
   format: 'esm',
